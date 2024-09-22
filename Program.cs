@@ -1,9 +1,4 @@
-﻿using System;
-using System.Data;
-using Microsoft.Data.SqlClient;
-using System.IO;
-using System.Text;
-using System.Data.SqlClient;
+﻿
 
 namespace DBEntityGenerator
 {
@@ -108,53 +103,65 @@ namespace DBEntityGenerator
         {
             var sb = new StringBuilder();
 
-            sb.AppendLine("protected override void OnModelCreating(ModelBuilder modelBuilder)");
-            sb.AppendLine("{");
+            //sb.AppendLine("protected override void OnModelCreating(ModelBuilder modelBuilder)");
+            //sb.AppendLine("{");
 
             foreach (var tableGroup in groupedByTables)
             {
-                var tableName = ToPascalCase(tableGroup.Key);
-                sb.AppendLine($"\tmodelBuilder.Entity<{tableName}>(entity =>");
+                var tableName = tableGroup.Key; // ToPascalCase(tableGroup.Key);
+                sb.AppendLine($"namespace DBEntityGenerator.Entity.Models;");
+
+                sb.AppendLine($"\tpublic class {tableName}Configuration : IEntityTypeConfiguration<{tableName}>");
                 sb.AppendLine("\t{");
+
+                //  public void Configure(EntityTypeBuilder<DB.Product> entity)
+                sb.AppendLine($"\tpublic void Configure(EntityTypeBuilder<{tableName}> entity)");
+                sb.AppendLine("\t\t{");
 
                 foreach (var column in tableGroup)
                 {
-                    var columnName = ToPascalCase(column["COLUMN_NAME"].ToString());
+                    var columnName = column["COLUMN_NAME"].ToString();
                     var sqlType = column["DATA_TYPE"].ToString();
                     var isNullable = column["IS_NULLABLE"].ToString() == "YES";
                     var maxLength = column["CHARACTER_MAXIMUM_LENGTH"] != DBNull.Value ? column["CHARACTER_MAXIMUM_LENGTH"].ToString() : null;
 
                     // Set column type and constraints
-                    sb.AppendLine($"\t\tentity.Property(e => e.{columnName})");
+                    sb.Append($"\t\t\tentity.Property(e => e.{columnName})");
 
                     // Define the column type mapping
                     if (sqlType.ToLower() == "nvarchar" || sqlType.ToLower() == "varchar" || sqlType.ToLower() == "char")
                     {
                         if (maxLength != null)
                         {
-                            sb.AppendLine($"\t\t\t.HasMaxLength({maxLength})");
+                            sb.Append($".HasMaxLength({maxLength})");
                         }
                     }
 
-                    sb.AppendLine($"\t\t\t.HasColumnType(\"{sqlType}\")");
+                    sb.Append($".HasColumnType(\"{sqlType}\")");
 
                     // Handle nullable columns
                     if (!isNullable)
                     {
-                        sb.AppendLine("\t\t\t.IsRequired()");
+                        sb.Append(".IsRequired()");
                     }
 
                     sb.AppendLine(";");
                 }
 
-                sb.AppendLine("\t});");
+                sb.AppendLine("\t\t}");
+                sb.AppendLine("\t}");
+
+                //sb.AppendLine("}");
+
+                // Output the generated code to a file
+                var filePath = Path.Combine(directory, $"{tableName}.cs");
+                File.WriteAllText(filePath, sb.ToString());
+                Console.WriteLine($"public virtual DbSet<{tableName}> {tableName} {{ get; set; }}");
             }
 
-            sb.AppendLine("}");
+            //sb.AppendLine("}");
 
-            // Output the generated code to a file
-            var filePath = Path.Combine(directory, "OnModelCreating.cs");
-            File.WriteAllText(filePath, sb.ToString());
+
 
             Console.WriteLine("Generated: OnModelCreating.cs");
         }
